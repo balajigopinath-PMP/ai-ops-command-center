@@ -347,7 +347,7 @@
             <label for="scenarioSlider">Scenario: reduce aging backlog (proxy for process improvement)</label>
             <input id="scenarioSlider" type="range" min="0" max="40" value="0" step="5" />
             <div class="rangeMeta">
-              <span>0% change</span>
+              <span id="scenarioPercent">0% change</span>
               <span id="scenarioLabel">0% reduction</span>
             </div>
           </div>
@@ -564,7 +564,7 @@
               </ul>
 
               <p style="margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45">
-                To tailor this About section to specific roles or interviews, tell me the job description or the audience and I will produce a concise pitch and STAR-based examples.
+                If you’re hiring for Program / Product / Ops leadership, I can translate this demo into a role-specific operating model and walk you through the measurable outcomes I’ve delivered.
               </p>
             </div>
           </div>
@@ -787,13 +787,23 @@
     const tli  = latestAndPrev(k, "tli");
     const risk = latestAndPrev(r, "detractor_risk");
 
-    document.getElementById("kpiCnps").textContent = fmt(cnps.latest, 1);
-    document.getElementById("kpiTli").textContent  = fmt(tli.latest, 0);
-    document.getElementById("kpiRisk").textContent = pct(risk.latest, 1);
+    // Apply scenario adjustments to displayed KPI numbers (non-destructive)
+    const pct = (state.scenarioReductionPct || 0) / 100;
+    const tliAdjFactor = 0.35;   // small effect in KPI display
+    const riskAdjFactor = 0.55;  // reflect scenario logic used in renderScenario
+    const cnpsPerPct = 1.5;
 
-    const cnpsDelta = (cnps.prev==null || cnps.latest==null) ? null : (cnps.latest - cnps.prev);
-    const tliDelta  = (tli.prev==null  || tli.latest==null)  ? null : (tli.latest  - tli.prev);
-    const riskDelta = (risk.prev==null || risk.latest==null) ? null : ((risk.latest - risk.prev) * 100);
+    const displayedTli = (tli.latest == null) ? null : Math.round(tli.latest * (1 - tliAdjFactor * pct));
+    const displayedRisk = (risk.latest == null) ? null : Math.max(0, risk.latest * (1 - riskAdjFactor * pct));
+    const displayedCnps = (cnps.latest == null) ? null : Math.min(80, cnps.latest + (pct * cnpsPerPct));
+
+    document.getElementById("kpiCnps").textContent = fmt(displayedCnps, 1);
+    document.getElementById("kpiTli").textContent  = fmt(displayedTli, 0);
+    document.getElementById("kpiRisk").textContent = pct(displayedRisk, 1);
+
+    const cnpsDelta = (cnps.prev==null || cnps.latest==null) ? null : (displayedCnps - cnps.prev);
+    const tliDelta  = (tli.prev==null  || tli.latest==null)  ? null : (displayedTli  - tli.prev);
+    const riskDelta = (risk.prev==null || risk.latest==null) ? null : ((displayedRisk - risk.prev) * 100);
 
     deltaBadge(document.getElementById("kpiCnpsDelta"), cnpsDelta);
     deltaBadge(document.getElementById("kpiTliDelta"), tliDelta);
@@ -1047,13 +1057,16 @@
     }
     populateTowers();
 
-    // scenario slider
+    // scenario slider (functional: updates labels and triggers full render)
     const slider = document.getElementById("scenarioSlider");
     const label = document.getElementById("scenarioLabel");
+    const percentLabel = document.getElementById("scenarioPercent");
     slider.addEventListener("input", ()=>{
       state.scenarioReductionPct = Number(slider.value);
       label.textContent = `${state.scenarioReductionPct}% reduction`;
-      renderScenario(state.tower);
+      percentLabel.textContent = `${state.scenarioReductionPct}% change`;
+      // IMPORTANT: render the full dashboard so KPIs and all charts reflect the scenario immediately
+      renderAll();
     });
 
     // data source select (embedded by default)
