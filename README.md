@@ -45,6 +45,8 @@ The GitHub Pages dashboard (`index.html`) is a single-file, interactive product-
    - `outputs/cnps_risk_by_tower_month.csv`
 6) Commit outputs + `index.html` and enable GitHub Pages
 
+DEMO LINK - https://balajigopinath-pmp.github.io/ai-ops-command-center/
+
 ## Hosting
 - GitHub Pages hosts static files only, so training is not executed on the site.
 - The dashboard visualizes exported results for a clean, shareable portfolio artifact.
