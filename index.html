@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Ops Command Center — Tower Load Forecast → CNPS Impact</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Plotly + PapaParse (CSV) -->
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0B1020;
+      --card:#0E1730;
+      --card2:#0B1328;
+      --text:#EAF0FF;
+      --muted:#A8B3D6;
+      --muted2:#7F8BB8;
+      --border:rgba(255,255,255,.08);
+      --accent:#7C5CFF;
+      --accent2:#2FE3C0;
+      --warn:#FFB020;
+      --bad:#FF4D6D;
+      --good:#2FE3C0;
+      --shadow: 0 14px 40px rgba(0,0,0,.45);
+      --radius: 18px;
+      --radius2: 14px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:
+        radial-gradient(1200px 700px at 12% 12%, rgba(124,92,255,.22), transparent 55%),
+        radial-gradient(900px 600px at 88% 18%, rgba(47,227,192,.16), transparent 55%),
+        radial-gradient(900px 650px at 50% 95%, rgba(255,77,109,.10), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      color:var(--text);
+    }
+    a{color:inherit}
+    .wrap{max-width:1220px;margin:0 auto;padding:28px 18px 60px}
+    .topbar{
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      padding:14px 16px;border:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border-radius:var(--radius);box-shadow:var(--shadow);
+      position:sticky;top:16px;backdrop-filter: blur(10px); z-index:50;
+    }
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:44px;height:44px;border-radius:14px;
+      background: conic-gradient(from 210deg, var(--accent), #3AB8FF, var(--accent2), var(--accent));
+      box-shadow: 0 10px 26px rgba(124,92,255,.28);
+    }
+    .title{display:flex;flex-direction:column;gap:2px}
+    .title h1{font-size:14px;margin:0;font-weight:800;letter-spacing:.2px}
+    .title p{font-size:12px;margin:0;color:var(--muted)}
+    .nav{
+      display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;
+    }
+    .tab{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      padding:10px 12px;border-radius:14px;
+      font-size:12px;font-weight:700;letter-spacing:.2px;
+      cursor:pointer; user-select:none;
+      transition: transform .12s ease, background .12s ease, color .12s ease;
+    }
+    .tab:hover{transform:translateY(-1px);background:rgba(255,255,255,.06);color:var(--text)}
+    .tab.active{
+      background:linear-gradient(180deg, rgba(124,92,255,.22), rgba(124,92,255,.10));
+      border-color:rgba(124,92,255,.38);
+      color:var(--text);
+    }
+
+    .hero{
+      margin-top:18px;
+      padding:22px 18px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow:var(--shadow);
+      display:grid;
+      grid-template-columns: 1.4fr .9fr;
+      gap:16px;
+    }
+    @media (max-width: 980px){ .hero{grid-template-columns:1fr} }
+    .hero h2{margin:0;font-size:22px;font-weight:900;letter-spacing:-.4px}
+    .hero p{margin:8px 0 0;color:var(--muted);line-height:1.5}
+    .pillrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .pill{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      padding:10px 12px;border-radius:999px;
+      font-size:12px;font-weight:800;color:var(--text);
+      display:flex;gap:8px;align-items:center;
+    }
+    .dot{width:9px;height:9px;border-radius:50%}
+    .dot.a{background:var(--accent)}
+    .dot.b{background:var(--accent2)}
+    .dot.c{background:var(--warn)}
+    .callout{
+      border:1px solid rgba(47,227,192,.25);
+      background:linear-gradient(180deg, rgba(47,227,192,.12), rgba(255,255,255,.02));
+      border-radius:var(--radius2);
+      padding:14px;
+    }
+    .callout h3{margin:0 0 6px;font-size:13px;font-weight:900}
+    .callout p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+
+    .grid{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:14px;
+    }
+    .card{
+      border:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      min-height:120px;
+    }
+    .card h3{margin:0 0 10px;font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.25px;text-transform:uppercase}
+    .kpi{
+      display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+      padding:6px 4px 2px;
+    }
+    .kpi .value{font-size:26px;font-weight:900;letter-spacing:-.6px}
+    .kpi .sub{font-size:12px;color:var(--muted)}
+    .kpi .delta{
+      font-size:12px;font-weight:900;
+      padding:6px 10px;border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .delta.good{color:var(--good);border-color:rgba(47,227,192,.25);background:rgba(47,227,192,.08)}
+    .delta.bad{color:var(--bad);border-color:rgba(255,77,109,.25);background:rgba(255,77,109,.08)}
+    .delta.warn{color:var(--warn);border-color:rgba(255,176,32,.25);background:rgba(255,176,32,.08)}
+
+    .controls{
+      display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+      padding:10px 12px;border:1px solid var(--border);
+      border-radius:16px;background:rgba(255,255,255,.03);
+    }
+    label{font-size:12px;color:var(--muted);font-weight:800}
+    select, input[type="range"]{
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 10px;
+      font-weight:700;
+      outline:none;
+    }
+    select{min-width:180px}
+    .rangeWrap{display:flex;flex-direction:column;gap:6px;min-width:260px}
+    .rangeMeta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+    .section{display:none}
+    .section.active{display:block}
+
+    .chart{height:360px}
+    .chartTall{height:430px}
+    .split{
+      display:grid;grid-template-columns: 1fr 1fr;gap:14px;
+    }
+    @media(max-width: 980px){.split{grid-template-columns:1fr}}
+
+    .table{
+      width:100%;
+      border-collapse:collapse;
+      overflow:hidden;
+      border-radius:14px;
+      border:1px solid var(--border);
+    }
+    .table th, .table td{
+      padding:10px 10px;
+      font-size:12px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      color:var(--muted);
+    }
+    .table th{
+      color:var(--text);
+      text-align:left;
+      background:rgba(255,255,255,.05);
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .badge{
+      font-size:11px;font-weight:900;
+      padding:6px 10px;border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      display:inline-flex;gap:8px;align-items:center;color:var(--text)
+    }
+    .badge .miniDot{width:8px;height:8px;border-radius:50%}
+    .miniDot.good{background:var(--good)}
+    .miniDot.bad{background:var(--bad)}
+    .miniDot.warn{background:var(--warn)}
+    .miniDot.neutral{background:var(--muted2)}
+
+    .footer{
+      margin-top:18px;
+      color:var(--muted2);
+      font-size:12px;
+      line-height:1.5;
+      padding:14px 4px;
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div class="title">
+        <h1>AI Ops Command Center</h1>
+        <p>Forecast tower load → reduce detractor risk → improve CNPS (demo)</p>
+      </div>
+    </div>
+
+    <div class="nav">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="operations">Operations</div>
+      <div class="tab" data-tab="ai">AI Workflow</div>
+      <div class="tab" data-tab="about">About</div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div>
+      <h2>Run operations at scale with proactive AI: from tickets → capacity signals → experience outcomes.</h2>
+      <p>
+        This GitHub Page is a product-style demo dashboard powered by <span class="mono">precomputed ML outputs</span>.
+        Model training happens locally (Python), then sanitized aggregates are exported to CSV and visualized here.
+      </p>
+      <div class="pillrow">
+        <div class="pill"><span class="dot a"></span>North Star: CNPS uplift & detractor risk reduction</div>
+        <div class="pill"><span class="dot b"></span>Tower Load Index (TLI) forecast for capacity planning</div>
+        <div class="pill"><span class="dot c"></span>Action: prioritize high-risk work before CX degrades</div>
+      </div>
+    </div>
+    <div class="callout">
+      <h3>What’s inside</h3>
+      <p>Interactive tower drilldowns, TLI trend + forecast, CNPS score and detractor risk, plus a narrative that explains how AI connects operational excellence to customer outcomes.</p>
+      <p style="margin-top:8px">Data is sanitized: identifiers removed, dates reduced to month, and “Days Open” bucketized.</p>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section id="overview" class="section active">
+    <div class="grid">
+      <div class="card" style="grid-column: span 12;">
+        <div class="controls">
+          <div>
+            <label for="towerSelect">Tower</label><br/>
+            <select id="towerSelect"></select>
+          </div>
+
+          <div class="rangeWrap">
+            <label for="scenarioSlider">Scenario: reduce aging backlog (proxy for process improvement)</label>
+            <input id="scenarioSlider" type="range" min="0" max="40" value="0" step="5" />
+            <div class="rangeMeta">
+              <span>0% change</span>
+              <span id="scenarioLabel">0% reduction</span>
+            </div>
+          </div>
+
+          <div>
+            <span class="badge"><span class="miniDot neutral"></span>Demo mode</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 4;">
+        <h3>North Star: CNPS score</h3>
+        <div class="kpi">
+          <div>
+            <div class="value" id="kpiCnps">—</div>
+            <div class="sub">Latest month (tower)</div>
+          </div>
+          <div class="delta" id="kpiCnpsDelta">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 4;">
+        <h3>Detractor risk</h3>
+        <div class="kpi">
+          <div>
+            <div class="value" id="kpiRisk">—</div>
+            <div class="sub">Predicted (tower-month)</div>
+          </div>
+          <div class="delta" id="kpiRiskDelta">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 4;">
+        <h3>Capacity signal: TLI</h3>
+        <div class="kpi">
+          <div>
+            <div class="value" id="kpiTli">—</div>
+            <div class="sub">Latest observed</div>
+          </div>
+          <div class="delta" id="kpiTliDelta">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 7;">
+        <h3>CNPS score trend (tower)</h3>
+        <div id="cnpsChart" class="chart"></div>
+      </div>
+
+      <div class="card" style="grid-column: span 5;">
+        <h3>Detractor risk trend (tower)</h3>
+        <div id="riskChart" class="chart"></div>
+      </div>
+
+      <div class="card" style="grid-column: span 12;">
+        <h3>Tower Load Index (observed + forecast)</h3>
+        <div id="tliChart" class="chartTall"></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="badge"><span class="miniDot warn"></span>Disclaimer</div>
+      <div style="margin-top:8px">
+        The ML models are trained locally and exported as aggregates for visualization. This GitHub Page is for demonstration/portfolio purposes only and does not represent a production system.
+      </div>
+    </div>
+  </section>
+
+  <!-- OPERATIONS -->
+  <section id="operations" class="section">
+    <div class="grid">
+      <div class="card" style="grid-column: span 12;">
+        <h3>Operational levers (what teams can control)</h3>
+        <div class="split">
+          <div>
+            <p style="margin:0;color:var(--muted);line-height:1.6;font-size:13px">
+              This view focuses on levers that move the North Star: reducing long-open work, balancing load across towers, and preventing spikes before they impact experience.
+            </p>
+            <div style="margin-top:12px" class="badge"><span class="miniDot good"></span>Use case: capacity planning + priority triage</div>
+          </div>
+          <div>
+            <p style="margin:0;color:var(--muted);line-height:1.6;font-size:13px">
+              Interpretable KPIs are exposed alongside forecasts to support governance: “what changed, why it changed, what to do next”.
+            </p>
+            <div style="margin-top:12px" class="badge"><span class="miniDot neutral"></span>Evidence-driven operations</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 6;">
+        <h3>Tickets vs TLI (tower-month)</h3>
+        <div id="ticketsVsTli" class="chart"></div>
+      </div>
+
+      <div class="card" style="grid-column: span 6;">
+        <h3>Aging signal proxy (p90 days open bucketed)</h3>
+        <div id="agingChart" class="chart"></div>
+      </div>
+
+      <div class="card" style="grid-column: span 12;">
+        <h3>Top towers by detractor risk (latest month)</h3>
+        <div id="topTowersTable"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI WORKFLOW -->
+  <section id="ai" class="section">
+    <div class="grid">
+      <div class="card" style="grid-column: span 12;">
+        <h3>End-to-end AI workflow (what runs locally)</h3>
+        <p style="margin:0;color:var(--muted);line-height:1.65;font-size:13px">
+          1) Sanitize raw tickets → 2) Engineer tower-month features → 3) Compute Tower Load Index (TLI) →
+          4) Forecast TLI (capacity risk) → 5) Predict detractor risk (experience risk) → 6) Publish a demo dashboard (this page).
+        </p>
+        <div class="pillrow" style="margin-top:12px">
+          <div class="pill"><span class="dot a"></span>Forecast model: gradient-boosted regression (fast, strong tabular baseline)</div>
+          <div class="pill"><span class="dot b"></span>Risk model: gradient-boosted classification (probability output)</div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 6;">
+        <h3>Why gradient boosting?</h3>
+        <p style="margin:0;color:var(--muted);line-height:1.65;font-size:13px">
+          For tabular operational data with mixed categorical + numeric signals, gradient boosting typically delivers strong accuracy with minimal feature scaling, supports non-linear interactions, and can produce feature importance for governance narratives.
+        </p>
+      </div>
+
+      <div class="card" style="grid-column: span 6;">
+        <h3>How it improves the North Star</h3>
+        <p style="margin:0;color:var(--muted);line-height:1.65;font-size:13px">
+          Forecasting TLI identifies upcoming capacity hotspots; the risk model estimates detractor probability. Teams can intervene (rebalance work, reduce aging backlog), lowering predicted detractor risk and improving CNPS over time.
+        </p>
+      </div>
+
+      <div class="card" style="grid-column: span 12;">
+        <h3>Scenario impact (simulated)</h3>
+        <div id="scenarioChart" class="chartTall"></div>
+        <p style="margin:10px 4px 0;color:var(--muted2);font-size:12px;line-height:1.5">
+          Scenario is a portfolio-style simulation using exported aggregates. In a production system, the scenario would be driven by real SLA actions and re-scored continuously.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about" class="section">
+    <div class="grid">
+      <div class="card" style="grid-column: span 12;">
+        <h3>About</h3>
+        <div class="split">
+          <div>
+            <h2 style="margin:0;font-size:18px;font-weight:900">Balaji Gopinath, PMP, CSM</h2>
+            <p style="margin:10px 0 0;color:var(--muted);line-height:1.65;font-size:13px">
+              Focused on implementing AI in program governance and operational excellence—turning operational telemetry (tickets, SLA signals, capacity metrics)
+              into decision systems that improve reliability, stakeholder experience, and execution predictability.
+            </p>
+            <p style="margin:10px 0 0;color:var(--muted);line-height:1.65;font-size:13px">
+              Portfolio: <a href="https://www.balajigopinath.work" target="_blank" rel="noreferrer">https://www.balajigopinath.work</a>
+            </p>
+            <div class="pillrow" style="margin-top:14px">
+              <div class="pill"><span class="dot a"></span>Program governance</div>
+              <div class="pill"><span class="dot b"></span>Operational excellence</div>
+              <div class="pill"><span class="dot c"></span>AI-driven decision systems</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="callout">
+              <h3>What this demo communicates</h3>
+              <p>
+                AI isn’t just “prediction”—it’s a governance loop: measure → forecast → prioritize → intervene → learn. This page demonstrates how to present that loop as a stakeholder-ready product artifact.
+              </p>
+              <p style="margin-top:10px">
+                To tailor this About section precisely to your portfolio tone and content, paste the text from your website’s About/Projects sections (the page couldn’t be fetched automatically in this environment).
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ---------- Config (static assets) ----------
+  const PATHS = {
+    towerKpis: "outputs/tower_month_kpis.csv",
+    tliForecast: "outputs/tli_forecast.csv",
+    riskByTowerMonth: "outputs/cnps_risk_by_tower_month.csv"
+  };
+
+  // ---------- Utilities ----------
+  function loadCSV(path){
+    return new Promise((resolve, reject) => {
+      Papa.parse(path, {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (res) => resolve(res.data),
+        error: (err) => reject(err)
+      });
+    });
+  }
+
+  function fmt(n, digits=0){
+    if(n === null || n === undefined || Number.isNaN(n)) return "—";
+    return n.toLocaleString(undefined, {maximumFractionDigits: digits});
+  }
+
+  function pct(n, digits=1){
+    if(n === null || n === undefined || Number.isNaN(n)) return "—";
+    return (n*100).toLocaleString(undefined, {maximumFractionDigits: digits}) + "%";
+  }
+
+  function deltaBadge(el, value){
+    el.classList.remove("good","bad","warn");
+    if(value === null || value === undefined || Number.isNaN(value)){
+      el.textContent = "—"; return;
+    }
+    const sign = value >= 0 ? "+" : "";
+    el.textContent = `${sign}${fmt(value,1)}`;
+    if(value >= 2) el.classList.add("good");
+    else if(value <= -2) el.classList.add("bad");
+    else el.classList.add("warn");
+  }
+
+  function setActiveTab(name){
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab===name));
+    document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id===name));
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  // ---------- Global state ----------
+  const state = {
+    tower: null,
+    scenarioReductionPct: 0,
+    kpis: [],
+    forecast: [],
+    risk: []
+  };
+
+  // ---------- Renderers ----------
+  function getTowerSlice(rows, tower){
+    return rows.filter(r => String(r.Tower) === String(tower))
+      .sort((a,b) => new Date(a.month) - new Date(b.month));
+  }
+
+  function latestAndPrev(rows, field){
+    const d = rows.filter(r => r[field] !== null && r[field] !== undefined && !Number.isNaN(r[field]));
+    if(d.length === 0) return {latest:null, prev:null};
+    const latest = d[d.length-1][field];
+    const prev = d.length > 1 ? d[d.length-2][field] : null;
+    return {latest, prev};
+  }
+
+  function renderKPIs(tower){
+    const k = getTowerSlice(state.kpis, tower);
+    const r = getTowerSlice(state.risk, tower);
+
+    const cnps = latestAndPrev(k, "cnps_score");
+    const tli  = latestAndPrev(k, "tli");
+    const risk = latestAndPrev(r, "detractor_risk");
+
+    document.getElementById("kpiCnps").textContent = fmt(cnps.latest, 1);
+    document.getElementById("kpiTli").textContent  = fmt(tli.latest, 0);
+    document.getElementById("kpiRisk").textContent = pct(risk.latest, 1);
+
+    const cnpsDelta = (cnps.prev==null || cnps.latest==null) ? null : (cnps.latest - cnps.prev);
+    const tliDelta  = (tli.prev==null  || tli.latest==null)  ? null : (tli.latest  - tli.prev);
+    const riskDelta = (risk.prev==null || risk.latest==null) ? null : ((risk.latest - risk.prev) * 100);
+
+    deltaBadge(document.getElementById("kpiCnpsDelta"), cnpsDelta);
+    deltaBadge(document.getElementById("kpiTliDelta"), tliDelta);
+    deltaBadge(document.getElementById("kpiRiskDelta"), riskDelta);
+  }
+
+  function renderOverviewCharts(tower){
+    const k = getTowerSlice(state.kpis, tower);
+    const r = getTowerSlice(state.risk, tower);
+    const f = getTowerSlice(state.forecast, tower);
+
+    const x = k.map(d => d.month);
+
+    Plotly.newPlot("cnpsChart", [{
+      x, y: k.map(d => d.cnps_score),
+      type:"scatter", mode:"lines+markers",
+      line:{color:"#2FE3C0", width:3},
+      marker:{size:7}
+    }], {
+      margin:{l:44,r:12,t:6,b:34},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"CNPS score"},
+    }, {displayModeBar:false, responsive:true});
+
+    Plotly.newPlot("riskChart", [{
+      x: r.map(d => d.month),
+      y: r.map(d => d.detractor_risk),
+      type:"scatter", mode:"lines+markers",
+      line:{color:"#FFB020", width:3},
+      marker:{size:7}
+    }], {
+      margin:{l:44,r:12,t:6,b:34},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", tickformat:".0%", title:"Detractor risk"},
+    }, {displayModeBar:false, responsive:true});
+
+    // TLI observed + forecast overlay
+    const observed = {
+      x: k.map(d=>d.month),
+      y: k.map(d=>d.tli),
+      type:"scatter",
+      mode:"lines+markers",
+      name:"Observed",
+      line:{color:"#7C5CFF", width:3},
+      marker:{size:7}
+    };
+    const forecast = {
+      x: f.map(d=>d.month),
+      y: f.map(d=>d.tli_forecast),
+      type:"scatter",
+      mode:"lines+markers",
+      name:"Forecast",
+      line:{color:"#3AB8FF", width:3, dash:"dot"},
+      marker:{size:7}
+    };
+
+    Plotly.newPlot("tliChart", [observed, forecast], {
+      margin:{l:52,r:12,t:6,b:34},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tower Load Index (TLI)"},
+      legend:{orientation:"h", x:0, y:1.12}
+    }, {displayModeBar:false, responsive:true});
+  }
+
+  function renderOperations(tower){
+    const k = getTowerSlice(state.kpis, tower);
+
+    Plotly.newPlot("ticketsVsTli", [{
+      x: k.map(d=>d.tickets),
+      y: k.map(d=>d.tli),
+      text: k.map(d=>d.month),
+      type:"scatter",
+      mode:"markers",
+      marker:{size:10, color:"#7C5CFF", opacity:.85},
+      hovertemplate:"Month=%{text}<br>Tickets=%{x}<br>TLI=%{y}<extra></extra>"
+    }], {
+      margin:{l:48,r:12,t:6,b:40},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tickets"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"TLI"}
+    }, {displayModeBar:false, responsive:true});
+
+    Plotly.newPlot("agingChart", [{
+      x: k.map(d=>d.month),
+      y: k.map(d=>d.p90_days_open),
+      type:"bar",
+      marker:{color:"#FF4D6D", opacity:.85},
+      hovertemplate:"Month=%{x}<br>p90 days open=%{y}<extra></extra>"
+    }], {
+      margin:{l:54,r:12,t:6,b:40},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"p90 Days Open"}
+    }, {displayModeBar:false, responsive:true});
+
+    // Top towers table by risk, latest month
+    const latestMonth = state.kpis.map(d=>d.month).sort().slice(-1)[0];
+    const riskLatest = state.risk.filter(d => d.month === latestMonth)
+      .sort((a,b)=> (b.detractor_risk||0) - (a.detractor_risk||0))
+      .slice(0, 8);
+
+    const rows = riskLatest.map((d,i) => {
+      const badge = d.detractor_risk >= 0.33 ? "bad" : (d.detractor_risk >= 0.25 ? "warn" : "good");
+      const dot = badge;
+      return `
+        <tr>
+          <td>${i+1}</td>
+          <td>${d.Tower}</td>
+          <td>${latestMonth}</td>
+          <td><span class="badge"><span class="miniDot ${dot}"></span>${pct(d.detractor_risk,1)}</span></td>
+          <td>${fmt(d.cnps_score,1)}</td>
+          <td>${fmt(d.tli,0)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    document.getElementById("topTowersTable").innerHTML = `
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th><th>Tower</th><th>Month</th><th>Detractor risk</th><th>CNPS score</th><th>TLI</th>
+          </tr>
+        </thead>
+        <tbody>${rows || `<tr><td colspan="6">No data</td></tr>`}</tbody>
+      </table>
+    `;
+  }
+
+  function renderScenario(tower){
+    // simple simulation: reducing aging backlog reduces TLI a bit and reduces detractor risk proportionally (demo narrative)
+    const k = getTowerSlice(state.kpis, tower);
+    const r = getTowerSlice(state.risk, tower);
+
+    const pctRed = state.scenarioReductionPct / 100;
+
+    // Simulated curves (not a production causal model)
+    const tliSim = k.map(d => (d.tli ?? null) == null ? null : d.tli * (1 - 0.35 * pctRed));
+    const riskSim = r.map(d => (d.detractor_risk ?? null) == null ? null : Math.max(0, d.detractor_risk * (1 - 0.55 * pctRed)));
+
+    const months = k.map(d=>d.month);
+
+    Plotly.newPlot("scenarioChart", [
+      {
+        x: months, y: k.map(d=>d.tli),
+        type:"scatter", mode:"lines+markers", name:"TLI (observed)",
+        line:{color:"#7C5CFF", width:3}, marker:{size:7}
+      },
+      {
+        x: months, y: tliSim,
+        type:"scatter", mode:"lines+markers", name:`TLI (scenario)`,
+        line:{color:"#3AB8FF", width:3, dash:"dot"}, marker:{size:7}
+      },
+      {
+        x: r.map(d=>d.month), y: r.map(d=>d.detractor_risk),
+        type:"scatter", mode:"lines+markers", name:"Detractor risk (pred)",
+        yaxis:"y2",
+        line:{color:"#FFB020", width:3}, marker:{size:7}
+      },
+      {
+        x: r.map(d=>d.month), y: riskSim,
+        type:"scatter", mode:"lines+markers", name:"Detractor risk (scenario)",
+        yaxis:"y2",
+        line:{color:"#2FE3C0", width:3, dash:"dot"}, marker:{size:7}
+      }
+    ], {
+      margin:{l:52,r:52,t:6,b:40},
+      paper_bgcolor:"rgba(0,0,0,0)",
+      plot_bgcolor:"rgba(0,0,0,0)",
+      font:{color:"#EAF0FF", family:"Inter"},
+      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"TLI"},
+      yaxis2:{
+        overlaying:"y", side:"right",
+        gridcolor:"rgba(255,255,255,.06)",
+        tickformat:".0%",
+        title:"Detractor risk"
+      },
+      legend:{orientation:"h", x:0, y:1.12}
+    }, {displayModeBar:false, responsive:true});
+  }
+
+  function renderAll(){
+    const tower = state.tower;
+    renderKPIs(tower);
+    renderOverviewCharts(tower);
+    renderOperations(tower);
+    renderScenario(tower);
+  }
+
+  // ---------- Boot ----------
+  async function init(){
+    // tabs
+    document.querySelectorAll(".tab").forEach(t=>{
+      t.addEventListener("click", ()=> setActiveTab(t.dataset.tab));
+    });
+
+    // load data
+    const [kpis, fc, risk] = await Promise.all([
+      loadCSV(PATHS.towerKpis),
+      loadCSV(PATHS.tliForecast),
+      loadCSV(PATHS.riskByTowerMonth)
+    ]);
+
+    // sanitize & coerce expected fields
+    state.kpis = kpis.filter(d=>d.Tower && d.month);
+    state.forecast = fc.filter(d=>d.Tower && d.month);
+    state.risk = risk.filter(d=>d.Tower && d.month);
+
+    // tower dropdown
+    const towers = [...new Set(state.kpis.map(d=>String(d.Tower)))].sort();
+    const sel = document.getElementById("towerSelect");
+    sel.innerHTML = towers.map(t=>`<option value="${t}">${t}</option>`).join("");
+    state.tower = towers[0];
+
+    sel.addEventListener("change", (e)=>{
+      state.tower = e.target.value;
+      renderAll();
+    });
+
+    // scenario slider
+    const slider = document.getElementById("scenarioSlider");
+    const label = document.getElementById("scenarioLabel");
+    slider.addEventListener("input", ()=>{
+      state.scenarioReductionPct = Number(slider.value);
+      label.textContent = `${state.scenarioReductionPct}% reduction`;
+      renderScenario(state.tower);
+    });
+
+    renderAll();
+  }
+
+  init().catch(err=>{
+    console.error(err);
+    alert("Failed to load CSV outputs. Ensure outputs/*.csv exist and paths match.");
+  });
+</script>
+</body>
+</html>
