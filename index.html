@@ -870,14 +870,14 @@
       marker:{size:7}
     };
     const forecast = {
-      x: f.map(d=>d.month),
-      y: f.map(d=>d.tli_forecast.map ? f.map(d=>d.tli_forecast) : f.map(d=>d.tli_forecast)),
-      type:"scatter",
-      mode:"lines+markers",
-      name:"Forecast",
-      line:{color:"#3AB8FF", width:3, dash:"dot"},
-      marker:{size:7}
-    };
+  x: f.map(d => d.month),
+  y: f.map(d => d.tli_forecast),
+  type: "scatter",
+  mode: "lines+markers",
+  name: "Forecast",
+  line: { color: "#3AB8FF", width: 3, dash: "dot" },
+  marker: { size: 7 }
+};
 
     Plotly.newPlot("tliChart", [observed, forecast], {
       margin:{l:52,r:12,t:6,b:34},
