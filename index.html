@@ -258,6 +258,12 @@
       padding:8px 10px;border-radius:999px;border:1px solid var(--border);
       background:rgba(255,255,255,.02);font-weight:800;font-size:12px;color:var(--text)
     }
+
+    /* scenario UI */
+    .scenario-block{display:flex;flex-direction:column;gap:8px;min-width:260px}
+    .scenario-block .scenario-label{font-weight:900;color:var(--muted);font-size:12px}
+    .scenario-metrics{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .scenario-metrics span{font-size:12px;color:var(--muted)}
   </style>
 </head>
 
@@ -280,7 +286,7 @@
     </div>
   </div>
 
-  <!-- HERO (Overview-only now; content replaced with problem → solution → outcome story) -->
+  <!-- HERO -->
   <div class="hero">
     <div>
       <h2>Run operations at scale with proactive AI — here’s the story.</h2>
@@ -343,12 +349,14 @@
             <select id="towerSelect"></select>
           </div>
 
-          <div class="rangeWrap">
-            <label for="scenarioSlider">Scenario: reduce aging backlog (proxy for process improvement)</label>
-            <input id="scenarioSlider" type="range" min="0" max="40" value="0" step="5" />
-            <div class="rangeMeta">
-              <span>0% change</span>
-              <span id="scenarioLabel">0% reduction</span>
+          <!-- Scenario block (functional slider) -->
+          <div class="scenario-block">
+            <label class="scenario-label">Scenario: Backlog Reduction Impact</label>
+            <input id="scenarioSlider" type="range" min="0" max="30" value="0" step="1">
+            <div class="scenario-metrics">
+              <span id="scenarioApply">Applying: 0%</span>
+              <span id="scenarioTLI">Projected TLI change: 0</span>
+              <span id="scenarioRisk">Projected risk change: 0%</span>
             </div>
           </div>
 
@@ -563,8 +571,8 @@
                 <li>Clear capacity plans and sprint priorities</li>
               </ul>
 
-              <p style="margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45">
-                If you’re hiring for Program / Product / Ops leadership, I can translate this demo into a role-specific operating model and walk you through the measurable outcomes I’ve delivered.
+              <p id="aboutCTA" style="margin-top:10px;color:var(--muted);font-size:13px;line-height:1.45">
+                Share the role or audience and I will craft a precise, data-backed narrative using this dashboard as the foundation.
               </p>
             </div>
           </div>
@@ -621,24 +629,21 @@
   // ---------- Global state ----------
   const state = {
     tower: null,
-    scenarioReductionPct: 0,
+    scenarioReductionPct: 0,   // slider 0..30
     kpis: [],
     forecast: [],
     risk: []
   };
 
   // ---------- Embedded data (hand-authored arrays mapped to rows) ----------
-  // Months (observed): Jan-2024 .. Dec-2025 (24 months)
   const MONTHS_OBS = [
     "2024-01-01","2024-02-01","2024-03-01","2024-04-01","2024-05-01","2024-06-01",
     "2024-07-01","2024-08-01","2024-09-01","2024-10-01","2024-11-01","2024-12-01",
     "2025-01-01","2025-02-01","2025-03-01","2025-04-01","2025-05-01","2025-06-01",
     "2025-07-01","2025-08-01","2025-09-01","2025-10-01","2025-11-01","2025-12-01"
   ];
-  // Forecast: Jan-2026 .. Jun-2026 (6 months)
   const MONTHS_FC = ["2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01","2026-06-01"];
 
-  // Towers (exact names)
   const TOWERS = [
     "Service Desk",
     "End User Computing",
@@ -650,34 +655,28 @@
     "Database Services"
   ];
 
-  // Hand-authored per-tower vectors (each vector length 24 for observed KPI/risk and 6 for forecast)
-  // Values chosen to meet the realism requirements and event spikes described in the brief.
-
-  // --- Service Desk ---
+  // Data arrays (same content as earlier build, hand-authored)
   const SD_tickets = [2200,2100,2600,2400,2300,2500,2400,2350,2600,2700,2400,2300,2250,2150,2350,2300,2250,2200,2100,2050,2150,2300,2400,2250];
-  const SD_tli =     [90,  88, 100, 95,  92,  98,  96,  94,  102, 110, 98,  93,  92,  90, 95,  94,  92,  90,  88,  86,  90,  96,  100, 94];
+  const SD_tli =     [90,88,100,95,92,98,96,94,102,110,98,93,92,90,95,94,92,90,88,86,90,96,100,94];
   const SD_cnps =    [62.5,63.0,60.0,61.0,60.5,59.0,60.0,61.0,59.5,58.0,60.5,61.5,62.0,62.2,61.8,61.5,62.0,62.5,63.0,63.5,63.8,63.0,62.0,62.8];
-  const SD_p90 =     [18,  17, 20, 19,  21,  22,  20,  19,  23,  24,  22,  25,  26,  24,  23,  22,  20,  18,  17,  16,  15,  15,  16,  14];
+  const SD_p90 =     [18,17,20,19,21,22,20,19,23,24,22,25,26,24,23,22,20,18,17,16,15,15,16,14];
   const SD_risk =    [0.18,0.17,0.21,0.20,0.22,0.24,0.22,0.21,0.25,0.27,0.24,0.28,0.30,0.27,0.26,0.25,0.23,0.21,0.19,0.18,0.16,0.16,0.17,0.15];
   const SD_fc_tli =  [92,90,89,88,87,86];
 
-  // --- End User Computing ---
   const EUC_tickets = [1500,1600,1800,1700,2200,2600,2400,2100,2300,2050,1850,1700,1650,1600,1700,1650,1600,1580,1550,1520,1500,1480,1490,1470];
-  const EUC_tli =     [85, 86, 95, 92, 120,130,125,110,118,105,98,90,88,86,89,87,85,84,83,81,80,79,80,78];
+  const EUC_tli =     [85,86,95,92,120,130,125,110,118,105,98,90,88,86,89,87,85,84,83,81,80,79,80,78];
   const EUC_cnps =    [55.0,54.5,53.0,54.0,51.0,49.5,50.5,52.0,50.0,51.5,53.5,54.5,55.0,55.2,55.0,55.4,55.6,55.8,56.0,56.5,57.0,57.2,56.8,57.0];
   const EUC_p90 =     [20,21,25,22,28,30,28,24,26,24,22,21,20,19,18,17,16,15,14,13,12,12,13,11];
   const EUC_risk =    [0.20,0.21,0.26,0.24,0.30,0.34,0.32,0.28,0.31,0.28,0.25,0.23,0.22,0.21,0.20,0.19,0.18,0.17,0.16,0.15,0.14,0.14,0.15,0.13];
   const EUC_fc_tli =  [82,80,79,78,77,76];
 
-  // --- Network Operations (outage in May/Jun 2024) ---
   const NET_tickets = [700,800,1200,900,1800,2000,1400,1000,1500,1200,900,850,800,780,860,840,820,800,780,760,1400,1250,1100,950];
-  const NET_tli =     [70, 75, 95, 80, 140,150,110,90,130,100,85,80,78,76,82,80,78,76,74,72,120,110,100,90];
+  const NET_tli =     [70,75,95,80,140,150,110,90,130,100,85,80,78,76,82,80,78,76,74,72,120,110,100,90];
   const NET_cnps =    [68.0,67.5,64.0,66.0,57.0,55.5,60.0,63.0,58.0,62.0,64.5,65.0,66.0,66.5,66.8,67.0,67.2,67.5,68.0,68.5,60.0,62.0,64.0,65.0];
   const NET_p90 =     [10,11,18,12,28,30,22,14,26,18,12,10,9,8,9,9,8,7,6,6,20,16,14,12];
   const NET_risk =    [0.12,0.13,0.22,0.15,0.40,0.45,0.30,0.18,0.34,0.21,0.15,0.13,0.11,0.10,0.12,0.11,0.10,0.09,0.09,0.08,0.33,0.29,0.25,0.20];
   const NET_fc_tli =  [88,85,90,86,84,82];
 
-  // --- Security Operations (audit Oct/Nov 2024) ---
   const SEC_tickets = [600,650,700,680,700,720,710,700,740,1100,1300,1150,1080,1050,1020,1000,980,960,940,920,900,880,870,860];
   const SEC_tli =     [72,73,76,74,76,78,77,76,80,110,130,115,108,105,102,100,98,96,94,92,90,88,86,84];
   const SEC_cnps =    [66.0,65.5,65.0,65.8,65.2,64.8,65.0,65.4,64.0,55.0,50.0,52.0,54.0,55.0,56.0,56.8,57.2,57.8,58.0,58.4,58.6,59.0,59.4,60.0];
@@ -685,7 +684,6 @@
   const SEC_risk =    [0.10,0.11,0.12,0.11,0.12,0.14,0.13,0.12,0.13,0.28,0.40,0.34,0.30,0.28,0.26,0.24,0.22,0.20,0.18,0.17,0.16,0.15,0.14,0.13];
   const SEC_fc_tli =  [82,80,78,76,75,74];
 
-  // --- Identity & Access Management (audit + IAM recert in Q4-2024; elevated in Q4-2025) ---
   const IAM_tickets = [500,520,540,560,600,650,620,610,630,700,900,850,820,800,780,760,850,900,920,940,960,980,1050,1120];
   const IAM_tli =     [68,69,70,72,75,80,78,76,78,82,100,95,92,90,88,86,92,96,98,100,102,105,110,115];
   const IAM_cnps =    [64.0,63.8,63.5,63.2,62.8,62.0,62.5,62.8,62.0,60.5,55.0,56.0,56.5,57.0,57.5,58.0,56.5,55.0,54.5,54.0,53.8,53.5,53.2,53.8];
@@ -693,7 +691,6 @@
   const IAM_risk =    [0.14,0.14,0.15,0.15,0.18,0.22,0.20,0.19,0.20,0.24,0.36,0.34,0.33,0.32,0.30,0.29,0.35,0.38,0.40,0.42,0.44,0.46,0.50,0.52];
   const IAM_fc_tli =  [112,108,110,106,103,100];
 
-  // --- Enterprise Applications (major rollout in Q4-2025) ---
   const EA_tickets = [520,540,560,580,600,620,640,660,680,740,760,760,780,800,820,840,860,880,900,950,1200,1400,1300,1250,1150];
   const EA_tli =     [70,71,73,74,76,78,80,82,84,90,95,94,95,96,98,100,102,104,106,110,130,140,135,125];
   const EA_cnps =    [63.0,62.8,62.5,62.2,62.0,61.8,61.5,61.0,60.8,60.0,59.5,60.0,60.2,60.5,60.8,61.0,61.4,61.6,61.8,61.0,55.0,52.0,54.0,56.0];
@@ -701,7 +698,6 @@
   const EA_risk =    [0.13,0.13,0.14,0.14,0.15,0.16,0.16,0.16,0.17,0.18,0.20,0.19,0.19,0.18,0.17,0.16,0.16,0.16,0.16,0.17,0.30,0.40,0.36,0.30];
   const EA_fc_tli =  [122,118,115,110,105,100];
 
-  // --- Cloud & Platform (sustained high during Q2-2025 + Q4-2025 rollout) ---
   const CP_tickets = [800,820,850,880,900,980,960,940,980,1100,1300,1450,1500,1480,1460,1500,1550,1600,1580,1560,1620,1700,1900,1800,1650];
   const CP_tli =     [95,96,100,104,110,120,118,116,122,140,150,155,160,158,156,160,165,170,168,166,170,175,190,185];
   const CP_cnps =    [58.0,57.8,57.5,57.0,56.8,55.5,56.0,56.5,56.0,54.0,52.0,51.0,50.5,50.8,51.5,52.0,52.8,53.5,54.0,54.6,53.8,53.5,52.0,52.5];
@@ -709,7 +705,6 @@
   const CP_risk =    [0.20,0.20,0.22,0.21,0.24,0.30,0.29,0.28,0.30,0.34,0.38,0.42,0.44,0.42,0.40,0.39,0.40,0.42,0.41,0.40,0.42,0.44,0.50,0.48];
   const CP_fc_tli =  [186,180,175,170,165,160];
 
-  // --- Database Services (consistently lower risk) ---
   const DB_tickets = [420,400,420,430,460,480,470,450,500,520,540,560,580,560,550,540,530,520,510,500,520,540,560,540];
   const DB_tli =     [65,64,65,66,68,70,69,68,72,74,76,78,80,78,76,74,72,71,70,69,68,70,72,70];
   const DB_cnps =    [70.0,70.2,70.0,69.8,69.6,69.4,69.6,69.8,69.2,69.0,68.8,68.5,68.6,68.8,69.0,69.2,69.4,69.6,69.8,70.0,69.6,69.4,69.8,70.2];
@@ -717,7 +712,6 @@
   const DB_risk =    [0.08,0.08,0.09,0.09,0.10,0.11,0.10,0.09,0.11,0.12,0.13,0.14,0.15,0.14,0.13,0.12,0.11,0.10,0.10,0.09,0.10,0.11,0.12,0.11];
   const DB_fc_tli =  [71,70,69,68,67,66];
 
-  // Build EMBEDDED_DATA mapping arrays into row objects
   const EMBEDDED_DATA = (function buildEmbedded(){
     const kpis = [];
     const risk = [];
@@ -765,35 +759,50 @@
     return { kpis, risk, forecast };
   })();
 
-  // ---------- Renderers (unchanged element IDs preserved) ----------
+  // ---------- Renderers ----------
   function getTowerSlice(rows, tower){
     return rows.filter(r => String(r.Tower) === String(tower))
       .sort((a,b) => new Date(a.month) - new Date(b.month));
   }
 
-  function latestAndPrev(rows, field){
-    const d = rows.filter(r => r[field] !== null && r[field] !== undefined && !Number.isNaN(r[field]));
-    if(d.length === 0) return {latest:null, prev:null};
-    const latest = d[d.length-1][field];
-    const prev = d.length > 1 ? d[d.length-2][field] : null;
-    return {latest, prev};
+  function latestRow(rows){
+    const s = rows.slice().sort((a,b)=> new Date(a.month) - new Date(b.month));
+    return s.length ? s[s.length-1] : null;
   }
 
   function renderKPIs(tower){
     const k = getTowerSlice(state.kpis, tower);
     const r = getTowerSlice(state.risk, tower);
 
-    const cnps = latestAndPrev(k, "cnps_score");
-    const tli  = latestAndPrev(k, "tli");
-    const risk = latestAndPrev(r, "detractor_risk");
+    const latestK = latestRow(k);
+    const latestR = latestRow(r);
 
-    document.getElementById("kpiCnps").textContent = fmt(cnps.latest, 1);
-    document.getElementById("kpiTli").textContent  = fmt(tli.latest, 0);
-    document.getElementById("kpiRisk").textContent = pct(risk.latest, 1);
+    // scenario adjustments (apply to latest month figures for KPI callouts and deltas)
+    const pct = (state.scenarioReductionPct || 0)/100;
+    const tliAdjFactor = 0.6;   // 60% of backlog reduction converts to TLI relief
+    const riskAdjFactor = 0.5;  // 50% effect on detractor risk
+    const cnpsPerPct = 3;       // +3 CNPS points at 100% (scaled)
 
-    const cnpsDelta = (cnps.prev==null || cnps.latest==null) ? null : (cnps.latest - cnps.prev);
-    const tliDelta  = (tli.prev==null  || tli.latest==null)  ? null : (tli.latest  - tli.prev);
-    const riskDelta = (risk.prev==null || risk.latest==null) ? null : ((risk.latest - risk.prev) * 100);
+    let effectiveTLI = latestK ? latestK.tli : null;
+    let effectiveRisk = latestR ? latestR.detractor_risk : null;
+    let effectiveCNPS = latestK ? latestK.cnps_score : null;
+
+    if(latestK && latestR){
+      effectiveTLI = effectiveTLI - (effectiveTLI * pct * tliAdjFactor);
+      effectiveRisk = Math.max(0, effectiveRisk - (effectiveRisk * pct * riskAdjFactor));
+      effectiveCNPS = Math.min(80, effectiveCNPS + (pct * cnpsPerPct));
+    }
+
+    document.getElementById("kpiCnps").textContent = fmt(effectiveCNPS, 1);
+    document.getElementById("kpiTli").textContent  = fmt(effectiveTLI, 0);
+    document.getElementById("kpiRisk").textContent = pct(effectiveRisk, 1);
+
+    // compute deltas vs previous (not adjusted)
+    const prevK = k.length > 1 ? k[k.length-2] : null;
+    const prevR = r.length > 1 ? r[r.length-2] : null;
+    const cnpsDelta = (prevK && latestK) ? ( (effectiveCNPS) - prevK.cnps_score ) : null;
+    const tliDelta  = (prevK && latestK) ? ( effectiveTLI - prevK.tli ) : null;
+    const riskDelta = (prevR && latestR) ? ( (effectiveRisk - prevR.detractor_risk)*100 ) : null;
 
     deltaBadge(document.getElementById("kpiCnpsDelta"), cnpsDelta);
     deltaBadge(document.getElementById("kpiTliDelta"), tliDelta);
@@ -805,10 +814,25 @@
     const r = getTowerSlice(state.risk, tower);
     const f = getTowerSlice(state.forecast, tower);
 
+    const pct = (state.scenarioReductionPct || 0)/100;
+    const tliAdjFactor = 0.6;
+    const riskAdjFactor = 0.5;
+    const cnpsPerPct = 3;
+
+    // build series
     const x = k.map(d => d.month);
+    let cnpsSeries = k.map(d => d.cnps_score);
+    let riskSeries = r.map(d => d.detractor_risk);
+    let tliSeries = k.map(d => d.tli);
+    // Apply scenario adjustment to the full simulated series (gradual improvement across months)
+    if(pct > 0){
+      tliSeries = tliSeries.map(v => v - (v * pct * tliAdjFactor));
+      riskSeries = riskSeries.map(v => Math.max(0, v - (v * pct * riskAdjFactor)));
+      cnpsSeries = cnpsSeries.map(v => Math.min(80, v + (pct * cnpsPerPct)));
+    }
 
     Plotly.newPlot("cnpsChart", [{
-      x, y: k.map(d => d.cnps_score),
+      x, y: cnpsSeries,
       type:"scatter", mode:"lines+markers",
       line:{color:"#2FE3C0", width:3},
       marker:{size:7}
@@ -823,7 +847,7 @@
 
     Plotly.newPlot("riskChart", [{
       x: r.map(d => d.month),
-      y: r.map(d => d.detractor_risk),
+      y: riskSeries,
       type:"scatter", mode:"lines+markers",
       line:{color:"#FFB020", width:3},
       marker:{size:7}
@@ -836,19 +860,18 @@
       yaxis:{gridcolor:"rgba(255,255,255,.06)", tickformat:".0%", title:"Detractor risk"},
     }, {displayModeBar:false, responsive:true});
 
-    // TLI observed + forecast overlay
     const observed = {
       x: k.map(d=>d.month),
-      y: k.map(d=>d.tli),
+      y: tliSeries,
       type:"scatter",
       mode:"lines+markers",
-      name:"Observed",
+      name:"Observed (sim)",
       line:{color:"#7C5CFF", width:3},
       marker:{size:7}
     };
     const forecast = {
       x: f.map(d=>d.month),
-      y: f.map(d=>d.tli_forecast),
+      y: f.map(d=>d.tli_forecast.map ? f.map(d=>d.tli_forecast) : f.map(d=>d.tli_forecast)),
       type:"scatter",
       mode:"lines+markers",
       name:"Forecast",
@@ -869,10 +892,15 @@
 
   function renderOperations(tower){
     const k = getTowerSlice(state.kpis, tower);
+    const r = getTowerSlice(state.risk, tower);
+
+    const pct = (state.scenarioReductionPct || 0)/100;
+    const tliAdjFactor = 0.6;
+    const riskAdjFactor = 0.5;
 
     Plotly.newPlot("ticketsVsTli", [{
       x: k.map(d=>d.tickets),
-      y: k.map(d=>d.tli),
+      y: k.map(d=>Math.round(d.tli - (d.tli * pct * tliAdjFactor))),
       text: k.map(d=>d.month),
       type:"scatter",
       mode:"markers",
@@ -902,23 +930,24 @@
       yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"p90 Days Open"}
     }, {displayModeBar:false, responsive:true});
 
-    // Top towers table by risk, latest month
     const latestMonth = state.kpis.map(d=>d.month).sort().slice(-1)[0];
     const riskLatest = state.risk.filter(d => d.month === latestMonth)
       .sort((a,b)=> (b.detractor_risk||0) - (a.detractor_risk||0))
       .slice(0, 8);
 
     const rows = riskLatest.map((d,i) => {
-      const badge = d.detractor_risk >= 0.33 ? "bad" : (d.detractor_risk >= 0.25 ? "warn" : "good");
+      const rawRisk = d.detractor_risk;
+      const adjRisk = rawRisk - (rawRisk * pct * riskAdjFactor);
+      const badge = adjRisk >= 0.33 ? "bad" : (adjRisk >= 0.25 ? "warn" : "good");
       const dot = badge;
       return `
         <tr>
           <td>${i+1}</td>
           <td>${d.Tower}</td>
           <td>${latestMonth}</td>
-          <td><span class="badge"><span class="miniDot ${dot}"></span>${pct(d.detractor_risk,1)}</span></td>
+          <td><span class="badge"><span class="miniDot ${dot}"></span>${pct(adjRisk,1)}</span></td>
           <td>${fmt(d.cnps_score,1)}</td>
-          <td>${fmt(d.tli,0)}</td>
+          <td>${fmt(d.tli - (d.tli * pct * tliAdjFactor),0)}</td>
         </tr>
       `;
     }).join("");
@@ -936,41 +965,26 @@
   }
 
   function renderScenario(tower){
-    // simple simulation: reducing aging backlog reduces TLI a bit and reduces detractor risk proportionally (demo narrative)
+    // This chart already displays scenario effects via state.scenarioReductionPct used in renderOverviewCharts/renderOperations
+    // Keep an explanatory chart that shows both observed and scenario lines (already handled in renderOverviewCharts)
+    // To keep the separate scenario chart for portfolio view we will replicate tli + risk with y2 axis
     const k = getTowerSlice(state.kpis, tower);
     const r = getTowerSlice(state.risk, tower);
-
-    const pctRed = state.scenarioReductionPct / 100;
-
-    // Simulated curves (not a production causal model)
-    const tliSim = k.map(d => (d.tli ?? null) == null ? null : d.tli * (1 - 0.35 * pctRed));
-    const riskSim = r.map(d => (d.detractor_risk ?? null) == null ? null : Math.max(0, d.detractor_risk * (1 - 0.55 * pctRed)));
+    const pct = (state.scenarioReductionPct || 0)/100;
+    const tliAdjFactor = 0.6;
+    const riskAdjFactor = 0.5;
 
     const months = k.map(d=>d.month);
+    const tliObs = k.map(d=>d.tli);
+    const tliSim = tliObs.map(v => v - (v * pct * tliAdjFactor));
+    const riskObs = r.map(d=>d.detractor_risk);
+    const riskSim = riskObs.map(v => Math.max(0, v - (v * pct * riskAdjFactor)));
 
     Plotly.newPlot("scenarioChart", [
-      {
-        x: months, y: k.map(d=>d.tli),
-        type:"scatter", mode:"lines+markers", name:"TLI (observed)",
-        line:{color:"#7C5CFF", width:3}, marker:{size:7}
-      },
-      {
-        x: months, y: tliSim,
-        type:"scatter", mode:"lines+markers", name:`TLI (scenario)`,
-        line:{color:"#3AB8FF", width:3, dash:"dot"}, marker:{size:7}
-      },
-      {
-        x: r.map(d=>d.month), y: r.map(d=>d.detractor_risk),
-        type:"scatter", mode:"lines+markers", name:"Detractor risk (pred)",
-        yaxis:"y2",
-        line:{color:"#FFB020", width:3}, marker:{size:7}
-      },
-      {
-        x: r.map(d=>d.month), y: riskSim,
-        type:"scatter", mode:"lines+markers", name:"Detractor risk (scenario)",
-        yaxis:"y2",
-        line:{color:"#2FE3C0", width:3, dash:"dot"}, marker:{size:7}
-      }
+      { x: months, y: tliObs, type:"scatter", mode:"lines", name:"TLI (observed)", line:{color:"#7C5CFF", width:3} },
+      { x: months, y: tliSim, type:"scatter", mode:"lines", name:"TLI (scenario)", line:{color:"#3AB8FF", width:3, dash:"dot"} },
+      { x: months, y: riskObs, type:"scatter", mode:"lines", name:"Risk (pred)", yaxis:"y2", line:{color:"#FFB020", width:3} },
+      { x: months, y: riskSim, type:"scatter", mode:"lines", name:"Risk (scenario)", yaxis:"y2", line:{color:"#2FE3C0", width:3, dash:"dot"} }
     ], {
       margin:{l:52,r:52,t:6,b:40},
       paper_bgcolor:"rgba(0,0,0,0)",
@@ -978,12 +992,7 @@
       font:{color:"#EAF0FF", family:"Inter"},
       xaxis:{gridcolor:"rgba(255,255,255,.06)"},
       yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"TLI"},
-      yaxis2:{
-        overlaying:"y", side:"right",
-        gridcolor:"rgba(255,255,255,.06)",
-        tickformat:".0%",
-        title:"Detractor risk"
-      },
+      yaxis2:{overlaying:"y", side:"right", gridcolor:"rgba(255,255,255,.06)", tickformat:".0%", title:"Detractor risk"},
       legend:{orientation:"h", x:0, y:1.12}
     }, {displayModeBar:false, responsive:true});
   }
@@ -994,7 +1003,6 @@
     renderOverviewCharts(tower);
     renderOperations(tower);
     renderScenario(tower);
-    // ensure charts resize correctly after render
     setTimeout(()=> safeResizeAllPlots(), 120);
   }
 
@@ -1042,19 +1050,54 @@
       sel.value = state.tower;
       sel.addEventListener("change", (e)=>{
         state.tower = e.target.value;
+        // update scenario metrics and rerender
+        updateScenarioMetrics();
         renderAll();
       });
     }
     populateTowers();
 
-    // scenario slider
+    // scenario slider wiring
     const slider = document.getElementById("scenarioSlider");
-    const label = document.getElementById("scenarioLabel");
-    slider.addEventListener("input", ()=>{
-      state.scenarioReductionPct = Number(slider.value);
-      label.textContent = `${state.scenarioReductionPct}% reduction`;
-      renderScenario(state.tower);
+    slider.addEventListener("input", (e)=>{
+      state.scenarioReductionPct = Number(e.target.value);
+      updateScenarioMetrics();
+      // re-render to show immediate effects
+      renderAll();
     });
+
+    function updateScenarioMetrics(){
+      const pct = state.scenarioReductionPct / 100;
+      const tliAdjFactor = 0.6;
+      const riskAdjFactor = 0.5;
+      const cnpsPerPct = 3;
+
+      const tower = state.tower;
+      const k = getTowerSlice(state.kpis, tower);
+      const r = getTowerSlice(state.risk, tower);
+      const latestK = latestRow(k);
+      const latestR = latestRow(r);
+
+      document.getElementById("scenarioApply").textContent = `Applying: ${state.scenarioReductionPct}%`;
+
+      if(latestK && latestR){
+        const projectedTLI = latestK.tli - (latestK.tli * pct * tliAdjFactor);
+        const projectedRisk = Math.max(0, latestR.detractor_risk - (latestR.detractor_risk * pct * riskAdjFactor));
+        const projectedCNPS = Math.min(80, latestK.cnps_score + (pct * cnpsPerPct));
+
+        const tliChange = (latestK.tli - projectedTLI);
+        const riskChangePct = ((latestR.detractor_risk - projectedRisk) * 100);
+
+        document.getElementById("scenarioTLI").textContent = `Projected TLI change: -${fmt(tliChange,1)}`;
+        document.getElementById("scenarioRisk").textContent = `Projected risk change: -${fmt(riskChangePct,1)}%`;
+      } else {
+        document.getElementById("scenarioTLI").textContent = `Projected TLI change: 0`;
+        document.getElementById("scenarioRisk").textContent = `Projected risk change: 0%`;
+      }
+    }
+
+    // initial scenario metric update
+    updateScenarioMetrics();
 
     // data source select (embedded by default)
     const dataSelect = document.getElementById("dataSourceSelect");
@@ -1063,16 +1106,15 @@
       const v = e.target.value;
       csvNoteEl.style.display = "none";
       if(v === "embedded"){
-        // revert to embedded (already in state, but ensure it's used)
         state.kpis = EMBEDDED_DATA.kpis.slice();
         state.risk = EMBEDDED_DATA.risk.slice();
         state.forecast = EMBEDDED_DATA.forecast.slice();
         populateTowers();
+        updateScenarioMetrics();
         renderAll();
         return;
       }
 
-      // Attempt CSV load (optional)
       try{
         const [kpisCsv, fcCsv, riskCsv] = await Promise.all([
           loadCSV(PATHS.towerKpis).catch(()=>null),
@@ -1080,44 +1122,35 @@
           loadCSV(PATHS.riskByTowerMonth).catch(()=>null)
         ]);
 
-        // Validate non-empty + expected columns (use field names the renderers expect)
         const kpisValid = kpisCsv && Array.isArray(kpisCsv) && kpisCsv.length > 0 && hasColumns(kpisCsv, ["Tower","month","tickets","tli","cnps_score","p90_days_open"]);
         const fcValid = fcCsv && Array.isArray(fcCsv) && fcCsv.length > 0 && hasColumns(fcCsv, ["Tower","month","tli_forecast"]);
         const riskValid = riskCsv && Array.isArray(riskCsv) && riskCsv.length > 0 && hasColumns(riskCsv, ["Tower","month","detractor_risk"]);
 
         if(kpisValid && fcValid && riskValid){
-          // sanitize (filter rows with Tower & month) and coerce numeric fields if possible
-          state.kpis = kpisCsv.filter(d=>d.Tower && d.month).map(d=>{
-            return {
-              Tower: String(d.Tower),
-              month: String(d.month),
-              tickets: Number(d.tickets),
-              tli: Number(d.tli),
-              cnps_score: Number(d.cnps_score),
-              p90_days_open: Number(d.p90_days_open)
-            };
-          });
-          state.forecast = fcCsv.filter(d=>d.Tower && d.month).map(d=>{
-            return {
-              Tower: String(d.Tower),
-              month: String(d.month),
-              tli_forecast: Number(d.tli_forecast)
-            };
-          });
-          state.risk = riskCsv.filter(d=>d.Tower && d.month).map(d=>{
-            return {
-              Tower: String(d.Tower),
-              month: String(d.month),
-              detractor_risk: Number(d.detractor_risk),
-              cnps_score: Number(d.cnps_score || NaN),
-              tli: Number(d.tli || NaN)
-            };
-          });
+          state.kpis = kpisCsv.filter(d=>d.Tower && d.month).map(d=>({
+            Tower: String(d.Tower),
+            month: String(d.month),
+            tickets: Number(d.tickets),
+            tli: Number(d.tli),
+            cnps_score: Number(d.cnps_score),
+            p90_days_open: Number(d.p90_days_open)
+          }));
+          state.forecast = fcCsv.filter(d=>d.Tower && d.month).map(d=>({
+            Tower: String(d.Tower),
+            month: String(d.month),
+            tli_forecast: Number(d.tli_forecast)
+          }));
+          state.risk = riskCsv.filter(d=>d.Tower && d.month).map(d=>({
+            Tower: String(d.Tower),
+            month: String(d.month),
+            detractor_risk: Number(d.detractor_risk),
+            cnps_score: Number(d.cnps_score || NaN),
+            tli: Number(d.tli || NaN)
+          }));
 
-          // repopulate towers and render
           populateTowers();
+          updateScenarioMetrics();
           renderAll();
-          // hide any CSV note
           csvNoteEl.style.display = "none";
         } else {
           // revert to embedded silently and show note
@@ -1125,43 +1158,41 @@
           state.risk = EMBEDDED_DATA.risk.slice();
           state.forecast = EMBEDDED_DATA.forecast.slice();
           populateTowers();
+          updateScenarioMetrics();
           renderAll();
           csvNoteEl.style.display = "inline-block";
         }
       } catch(err){
-        // fallback to embedded; show note; no alert
         state.kpis = EMBEDDED_DATA.kpis.slice();
         state.risk = EMBEDDED_DATA.risk.slice();
         state.forecast = EMBEDDED_DATA.forecast.slice();
         populateTowers();
+        updateScenarioMetrics();
         renderAll();
         csvNoteEl.style.display = "inline-block";
         console.error("CSV load error:", err);
       }
     });
 
-    // initial render (embedded data is already set)
+    // initial render
     renderAll();
   }
 
-  // ---------- Tab behavior (improved navigation UX) ----------
+  // ---------- Tab behavior ----------
   function setActiveTab(name){
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab===name));
     document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id===name));
-    // Hide hero except on Overview
     const hero = document.querySelector(".hero");
     if(hero){
       hero.style.display = (name === "overview") ? "grid" : "none";
     }
-    // ensure charts resize correctly after tab change
     setTimeout(()=> safeResizeAllPlots(), 120);
     window.scrollTo({top:0, behavior:"smooth"});
   }
 
-  // Run init (no blocking alert on error). Any unexpected exceptions are logged.
+  // Run init
   init().catch(err=>{
     console.error("Init error:", err);
-    // fallback to embedded if anything went wrong during init
     state.kpis = EMBEDDED_DATA.kpis.slice();
     state.risk = EMBEDDED_DATA.risk.slice();
     state.forecast = EMBEDDED_DATA.forecast.slice();
