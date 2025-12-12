@@ -258,6 +258,31 @@
       padding:8px 10px;border-radius:999px;border:1px solid var(--border);
       background:rgba(255,255,255,.02);font-weight:800;font-size:12px;color:var(--text)
     }
+/* Dropdown styling to match dark theme */
+select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 600;
+  appearance: none;
+}
+
+/* The dropdown list itself */
+select option {
+  background-color: var(--card2);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+/* Hover state inside dropdown list */
+select option:hover,
+select option:focus {
+  background-color: rgba(124,92,255,0.25);
+  color: var(--text);
+}
+
   </style>
 </head>
 
