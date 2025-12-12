@@ -41,7 +41,6 @@
       background:
         radial-gradient(1200px 700px at 12% 12%, rgba(124,92,255,.22), transparent 55%),
         radial-gradient(900px 600px at 88% 18%, rgba(47,227,192,.16), transparent 55%),
-        radial-gradient(900px 650px at 50% 95%, rgba(255,77,109,.10), transparent 55%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
       color:var(--text);
       overflow-x:hidden;
@@ -626,6 +625,18 @@
     else el.classList.add("warn");
   }
 
+  // defensive helper: strips invalid numbers from arrays and returns {x, y}
+  function buildSeries(xs, ys){
+    const outX = [], outY = [];
+    for(let i=0;i<xs.length && i<ys.length;i++){
+      const y = ys[i];
+      if(y === null || y === undefined || Number.isNaN(Number(y))) continue;
+      outX.push(xs[i]);
+      outY.push(Number(y));
+    }
+    return { x: outX, y: outY };
+  }
+
   // ---------- Global state ----------
   const state = {
     tower: null,
@@ -809,6 +820,14 @@
     deltaBadge(document.getElementById("kpiRiskDelta"), riskDelta);
   }
 
+  function annotateIfEmpty(divId, layout){
+    // if trace arrays are empty, add centered annotation "No data"
+    layout = layout || {};
+    const hasTraces = (layout.data && layout.data.length && layout.data.some(t=> (t.x && t.x.length) || (t.y && t.y.length)));
+    // we cannot directly inspect traces passed to newPlot here; instead ensure each trace non-empty before plotting
+    return layout;
+  }
+
   function renderOverviewCharts(tower){
     const k = getTowerSlice(state.kpis, tower);
     const r = getTowerSlice(state.risk, tower);
@@ -819,77 +838,111 @@
     const riskAdjFactor = 0.5;
     const cnpsPerPct = 3;
 
-    // build series
+    // build series (defensive)
     const x = k.map(d => d.month);
-    let cnpsSeries = k.map(d => d.cnps_score);
-    let riskSeries = r.map(d => d.detractor_risk);
-    let tliSeries = k.map(d => d.tli);
-    // Apply scenario adjustment to the full simulated series (gradual improvement across months)
+    const cnpsSeriesRaw = k.map(d => d.cnps_score);
+    const riskSeriesRaw = r.map(d => d.detractor_risk);
+    const tliSeriesRaw = k.map(d => d.tli);
+
+    let cnpsSeries = buildSeries(x, cnpsSeriesRaw);
+    let riskSeries = buildSeries(r.map(d=>d.month), riskSeriesRaw);
+    let tliSeries = buildSeries(x, tliSeriesRaw);
+
+    // Apply scenario adjustment (if any) on the numeric arrays we have
     if(pct > 0){
-      tliSeries = tliSeries.map(v => v - (v * pct * tliAdjFactor));
-      riskSeries = riskSeries.map(v => Math.max(0, v - (v * pct * riskAdjFactor)));
-      cnpsSeries = cnpsSeries.map(v => Math.min(80, v + (pct * cnpsPerPct)));
+      tliSeries.y = tliSeries.y.map(v => v - (v * pct * tliAdjFactor));
+      riskSeries.y = riskSeries.y.map(v => Math.max(0, v - (v * pct * riskAdjFactor)));
+      cnpsSeries.y = cnpsSeries.y.map(v => Math.min(80, v + (pct * cnpsPerPct)));
     }
 
-    Plotly.newPlot("cnpsChart", [{
-      x, y: cnpsSeries,
-      type:"scatter", mode:"lines+markers",
-      line:{color:"#2FE3C0", width:3},
-      marker:{size:7}
-    }], {
-      margin:{l:44,r:12,t:6,b:34},
-      paper_bgcolor:"rgba(0,0,0,0)",
-      plot_bgcolor:"rgba(0,0,0,0)",
-      font:{color:"#EAF0FF", family:"Inter"},
-      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
-      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"CNPS score"},
-    }, {displayModeBar:false, responsive:true});
+    // CNPS chart (defensive)
+    if(cnpsSeries.x.length === 0 || cnpsSeries.y.length === 0){
+      Plotly.newPlot("cnpsChart", [], {
+        annotations:[{text:"No CNPS data", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:44,r:12,t:6,b:34}
+      }, {displayModeBar:false,responsive:true});
+    } else {
+      Plotly.newPlot("cnpsChart", [{
+        x: cnpsSeries.x, y: cnpsSeries.y,
+        type:"scatter", mode:"lines+markers",
+        line:{color:"#2FE3C0", width:3}, marker:{size:7}
+      }], {
+        margin:{l:44,r:12,t:6,b:34},
+        paper_bgcolor:"rgba(0,0,0,0)",
+        plot_bgcolor:"rgba(0,0,0,0)",
+        font:{color:"#EAF0FF", family:"Inter"},
+        xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+        yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"CNPS score"},
+      }, {displayModeBar:false, responsive:true});
+    }
 
-    Plotly.newPlot("riskChart", [{
-      x: r.map(d => d.month),
-      y: riskSeries,
-      type:"scatter", mode:"lines+markers",
-      line:{color:"#FFB020", width:3},
-      marker:{size:7}
-    }], {
-      margin:{l:44,r:12,t:6,b:34},
-      paper_bgcolor:"rgba(0,0,0,0)",
-      plot_bgcolor:"rgba(0,0,0,0)",
-      font:{color:"#EAF0FF", family:"Inter"},
-      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
-      yaxis:{gridcolor:"rgba(255,255,255,.06)", tickformat:".0%", title:"Detractor risk"},
-    }, {displayModeBar:false, responsive:true});
+    // Risk chart (defensive)
+    if(riskSeries.x.length === 0 || riskSeries.y.length === 0){
+      Plotly.newPlot("riskChart", [], {
+        annotations:[{text:"No risk data", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:44,r:12,t:6,b:34}
+      }, {displayModeBar:false,responsive:true});
+    } else {
+      Plotly.newPlot("riskChart", [{
+        x: riskSeries.x, y: riskSeries.y,
+        type:"scatter", mode:"lines+markers",
+        line:{color:"#FFB020", width:3}, marker:{size:7}
+      }], {
+        margin:{l:44,r:12,t:6,b:34},
+        paper_bgcolor:"rgba(0,0,0,0)",
+        plot_bgcolor:"rgba(0,0,0,0)",
+        font:{color:"#EAF0FF", family:"Inter"},
+        xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+        yaxis:{gridcolor:"rgba(255,255,255,.06)", tickformat:".0%", title:"Detractor risk"},
+      }, {displayModeBar:false, responsive:true});
+    }
 
-    const observed = {
-      x: k.map(d=>d.month),
-      y: tliSeries,
+    // TLI observed + forecast
+    // Observed (use tliSeries)
+    const observed = (tliSeries.x.length && tliSeries.y.length) ? {
+      x: tliSeries.x,
+      y: tliSeries.y,
       type: "scatter",
       mode: "lines+markers",
       name: "Observed (sim)",
       line: { color: "#7C5CFF", width: 3 },
       marker: { size: 7 }
-    };
+    } : null;
 
-    // FIXED: correct forecast mapping
-    const forecast = {
-      x: f.map(d => d.month),
-      y: f.map(d => d.tli_forecast),
+    // Forecast (use f defensive)
+    const fcX = f.map(d=>d.month);
+    const fcY = f.map(d=>d.tli_forecast);
+    const fcSeries = buildSeries(fcX, fcY);
+    const forecastTrace = (fcSeries.x.length && fcSeries.y.length) ? {
+      x: fcSeries.x,
+      y: fcSeries.y,
       type: "scatter",
       mode: "lines+markers",
       name: "Forecast",
       line: { color: "#3AB8FF", width: 3, dash: "dot" },
       marker: { size: 7 }
-    };
+    } : null;
 
-    Plotly.newPlot("tliChart", [observed, forecast], {
-      margin:{l:52,r:12,t:6,b:34},
-      paper_bgcolor:"rgba(0,0,0,0)",
-      plot_bgcolor:"rgba(0,0,0,0)",
-      font:{color:"#EAF0FF", family:"Inter"},
-      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
-      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tower Load Index (TLI)"},
-      legend:{orientation:"h", x:0, y:1.12}
-    }, {displayModeBar:false, responsive:true});
+    const traces = [];
+    if(observed) traces.push(observed);
+    if(forecastTrace) traces.push(forecastTrace);
+
+    if(traces.length === 0){
+      Plotly.newPlot("tliChart", [], {
+        annotations:[{text:"No TLI data", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:52,r:12,t:6,b:34}
+      }, {displayModeBar:false, responsive:true});
+    } else {
+      Plotly.newPlot("tliChart", traces, {
+        margin:{l:52,r:12,t:6,b:34},
+        paper_bgcolor:"rgba(0,0,0,0)",
+        plot_bgcolor:"rgba(0,0,0,0)",
+        font:{color:"#EAF0FF", family:"Inter"},
+        xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+        yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tower Load Index (TLI)"},
+        legend:{orientation:"h", x:0, y:1.12}
+      }, {displayModeBar:false, responsive:true});
+    }
   }
 
   function renderOperations(tower){
@@ -900,38 +953,58 @@
     const tliAdjFactor = 0.6;
     const riskAdjFactor = 0.5;
 
-    Plotly.newPlot("ticketsVsTli", [{
-      x: k.map(d=>d.tickets),
-      y: k.map(d=>Math.round(d.tli - (d.tli * pct * tliAdjFactor))),
-      text: k.map(d=>d.month),
-      type:"scatter",
-      mode:"markers",
-      marker:{size:10, color:"#7C5CFF", opacity:.85},
-      hovertemplate:"Month=%{text}<br>Tickets=%{x}<br>TLI=%{y}<extra></extra>"
-    }], {
-      margin:{l:48,r:12,t:6,b:40},
-      paper_bgcolor:"rgba(0,0,0,0)",
-      plot_bgcolor:"rgba(0,0,0,0)",
-      font:{color:"#EAF0FF", family:"Inter"},
-      xaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tickets"},
-      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"TLI"}
-    }, {displayModeBar:false, responsive:true});
+    const ticketsX = buildSeries(k.map(d=>d.month), k.map(d=>d.tickets));
+    const tliY = buildSeries(k.map(d=>d.month), k.map(d=>d.tli)).y.map(v => Math.round(v - (v * pct * tliAdjFactor)));
 
-    Plotly.newPlot("agingChart", [{
-      x: k.map(d=>d.month),
-      y: k.map(d=>d.p90_days_open),
-      type:"bar",
-      marker:{color:"#FF4D6D", opacity:.85},
-      hovertemplate:"Month=%{x}<br>p90 days open=%{y}<extra></extra>"
-    }], {
-      margin:{l:54,r:12,t:6,b:40},
-      paper_bgcolor:"rgba(0,0,0,0)",
-      plot_bgcolor:"rgba(0,0,0,0)",
-      font:{color:"#EAF0FF", family:"Inter"},
-      xaxis:{gridcolor:"rgba(255,255,255,.06)"},
-      yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"p90 Days Open"}
-    }, {displayModeBar:false, responsive:true});
+    if(ticketsX.x.length === 0 || tliY.length === 0){
+      Plotly.newPlot("ticketsVsTli", [], {
+        annotations:[{text:"No data for Tickets vs TLI", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:48,r:12,t:6,b:40}
+      }, {displayModeBar:false,responsive:true});
+    } else {
+      Plotly.newPlot("ticketsVsTli", [{
+        x: ticketsX.y, // x-values: tickets
+        y: tliY,       // y-values: adjusted TLI
+        text: ticketsX.x,
+        type:"scatter",
+        mode:"markers",
+        marker:{size:10, color:"#7C5CFF", opacity:.85},
+        hovertemplate:"Month=%{text}<br>Tickets=%{x}<br>TLI=%{y}<extra></extra>"
+      }], {
+        margin:{l:48,r:12,t:6,b:40},
+        paper_bgcolor:"rgba(0,0,0,0)",
+        plot_bgcolor:"rgba(0,0,0,0)",
+        font:{color:"#EAF0FF", family:"Inter"},
+        xaxis:{gridcolor:"rgba(255,255,255,.06)", title:"Tickets"},
+        yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"TLI"}
+      }, {displayModeBar:false, responsive:true});
+    }
 
+    // Aging chart
+    const agingX = buildSeries(k.map(d=>d.month), k.map(d=>d.p90_days_open));
+    if(agingX.x.length === 0){
+      Plotly.newPlot("agingChart", [], {
+        annotations:[{text:"No aging data", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:54,r:12,t:6,b:40}
+      }, {displayModeBar:false, responsive:true});
+    } else {
+      Plotly.newPlot("agingChart", [{
+        x: agingX.x,
+        y: agingX.y,
+        type:"bar",
+        marker:{color:"#FF4D6D", opacity:.85},
+        hovertemplate:"Month=%{x}<br>p90 days open=%{y}<extra></extra>"
+      }], {
+        margin:{l:54,r:12,t:6,b:40},
+        paper_bgcolor:"rgba(0,0,0,0)",
+        plot_bgcolor:"rgba(0,0,0,0)",
+        font:{color:"#EAF0FF", family:"Inter"},
+        xaxis:{gridcolor:"rgba(255,255,255,.06)"},
+        yaxis:{gridcolor:"rgba(255,255,255,.06)", title:"p90 Days Open"}
+      }, {displayModeBar:false, responsive:true});
+    }
+
+    // Top towers table for latest month across all towers
     const latestMonth = state.kpis.map(d=>d.month).sort().slice(-1)[0];
     const riskLatest = state.risk.filter(d => d.month === latestMonth)
       .sort((a,b)=> (b.detractor_risk||0) - (a.detractor_risk||0))
@@ -974,17 +1047,26 @@
     const riskAdjFactor = 0.5;
 
     const months = k.map(d=>d.month);
-    const tliObs = k.map(d=>d.tli);
-    const tliSim = tliObs.map(v => v - (v * pct * tliAdjFactor));
-    const riskObs = r.map(d=>d.detractor_risk);
-    const riskSim = riskObs.map(v => Math.max(0, v - (v * pct * riskAdjFactor)));
+    const tliObsSeries = buildSeries(months, k.map(d=>d.tli));
+    const tliSimSeries = { x: tliObsSeries.x, y: tliObsSeries.y.map(v => v - (v * pct * tliAdjFactor)) };
+    const riskObsSeries = buildSeries(r.map(d=>d.month), r.map(d=>d.detractor_risk));
+    const riskSimSeries = { x: riskObsSeries.x, y: riskObsSeries.y.map(v => Math.max(0, v - (v * pct * riskAdjFactor))) };
 
-    Plotly.newPlot("scenarioChart", [
-      { x: months, y: tliObs, type:"scatter", mode:"lines", name:"TLI (observed)", line:{color:"#7C5CFF", width:3} },
-      { x: months, y: tliSim, type:"scatter", mode:"lines", name:"TLI (scenario)", line:{color:"#3AB8FF", width:3, dash:"dot"} },
-      { x: months, y: riskObs, type:"scatter", mode:"lines", name:"Risk (pred)", yaxis:"y2", line:{color:"#FFB020", width:3} },
-      { x: months, y: riskSim, type:"scatter", mode:"lines", name:"Risk (scenario)", yaxis:"y2", line:{color:"#2FE3C0", width:3, dash:"dot"} }
-    ], {
+    const traces = [];
+    if(tliObsSeries.x.length) traces.push({ x: tliObsSeries.x, y: tliObsSeries.y, type:"scatter", mode:"lines", name:"TLI (observed)", line:{color:"#7C5CFF", width:3} });
+    if(tliSimSeries.x.length) traces.push({ x: tliSimSeries.x, y: tliSimSeries.y, type:"scatter", mode:"lines", name:"TLI (scenario)", line:{color:"#3AB8FF", width:3, dash:"dot"} });
+    if(riskObsSeries.x.length) traces.push({ x: riskObsSeries.x, y: riskObsSeries.y, type:"scatter", mode:"lines", name:"Risk (pred)", yaxis:"y2", line:{color:"#FFB020", width:3} });
+    if(riskSimSeries.x.length) traces.push({ x: riskSimSeries.x, y: riskSimSeries.y, type:"scatter", mode:"lines", name:"Risk (scenario)", yaxis:"y2", line:{color:"#2FE3C0", width:3, dash:"dot"} });
+
+    if(traces.length === 0){
+      Plotly.newPlot("scenarioChart", [], {
+        annotations:[{text:"No scenario data", xref:"paper", yref:"paper", x:0.5, y:0.5, showarrow:false, font:{color:"#A8B3D6"}}],
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", margin:{l:52,r:52,t:6,b:40}
+      }, {displayModeBar:false, responsive:true});
+      return;
+    }
+
+    Plotly.newPlot("scenarioChart", traces, {
       margin:{l:52,r:52,t:6,b:40},
       paper_bgcolor:"rgba(0,0,0,0)",
       plot_bgcolor:"rgba(0,0,0,0)",
@@ -998,10 +1080,15 @@
 
   function renderAll(){
     const tower = state.tower;
-    renderKPIs(tower);
-    renderOverviewCharts(tower);
-    renderOperations(tower);
-    renderScenario(tower);
+    if(!tower){
+      // defensive: pick first available tower
+      const all = state.kpis.map(d=>d.Tower).filter(Boolean);
+      state.tower = all.length ? all[0] : null;
+    }
+    renderKPIs(state.tower);
+    renderOverviewCharts(state.tower);
+    renderOperations(state.tower);
+    renderScenario(state.tower);
     setTimeout(()=> safeResizeAllPlots(), 120);
   }
 
@@ -1043,7 +1130,7 @@
     // populate tower dropdown from embedded (or later CSV) data
     function populateTowers(){
       const sel = document.getElementById("towerSelect");
-      // remove old listener by cloning (avoid duplicate listeners on repeated populate)
+      // replace select to avoid duplicated listeners if called multiple times
       const newSel = sel.cloneNode(false);
       sel.parentNode.replaceChild(newSel, sel);
 
